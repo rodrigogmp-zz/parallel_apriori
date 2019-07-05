@@ -1,3 +1,4 @@
+#include <time.h>
 #include <omp.h>
 #include <stdio.h>
 #include <iostream>
@@ -9,6 +10,10 @@
 #include <cmath>
 #include <iomanip>
 #include <bits/stdc++.h>
+
+#define ID_PROCESSO_MESTRE 0
+#define NUM_THREADS 2
+
 using namespace std;
 
 long double round(long double value, int pos){
@@ -44,14 +49,22 @@ public:
     
     // Process calcula todos os itemset caditados e os que tem o suporte maio que o suporte minimo
     void process() {
+        double time = 0.0;
+        clock_t initialTime;
+        int count = 0;
         while(true) {
+            initialTime = clock();
             C = generateNextC();
+            time += (clock()-initialTime)/double(CLOCKS_PER_SEC);
+            count++;
             if(C.size()==0) break;
             nowStep++;
             
             L = generateL();
             frequentSet.push_back(L);
         }
+        cout << time << endl;
+        cout << count << endl;
         
         for(auto&stepItemSet:frequentSet) {
             for(auto&items:stepItemSet) {
@@ -103,10 +116,12 @@ public:
         }
     }
     
-    vector<vector<int> > joining () {
-        vector<vector<int> > ret;
-        // #pragma omp parallel for
+    vector<vector<int>> joining () {        
+        vector<vector<int>> ret;
+        omp_set_nested(1);
+        #pragma omp parallel for num_threads(NUM_THREADS) shared(ret)
         for(int i=0; i < L.size(); i++){
+            #pragma omp parallel for num_threads(NUM_THREADS)
             for(int j = i+1; j < L.size(); j++) {
                 int k;
                 for(k = 0; k < nowStep-1; k++) {
@@ -121,10 +136,12 @@ public:
                     int b = L[j][nowStep-1];
                     if(a>b) swap(a,b);
                     tmp.push_back(a), tmp.push_back(b);
-                    ret.push_back(tmp);
+                
+                    #pragma omp critical
+                    ret.push_back(tmp);                
                 }
             }
-        }
+        }        
         return ret;
     }
     
@@ -133,37 +150,36 @@ public:
         
         set<vector<int> > lSet;
         for(auto&row:L) lSet.insert(row);
-        
-        #pragma omp parallel
-        {
-            #pragma omp single
-            {
-                for(auto&row:joined)
-                {
-                    #pragma omp task
-                    {
-                        int i;
-                        for(i=0;i<row.size();i++){
-                            vector<int> tmp = row;
-                            tmp.erase(tmp.begin()+i);
-                            if(lSet.find(tmp) == lSet.end()) {
-                                break;
-                            }
-                        }
-                        if(i==row.size()){
-                            ret.push_back(row);
-                        }
-                        
-                    }
+        vector<vector<int>>::iterator it_joined;
+        #pragma omp parallel for num_threads(NUM_THREADS) shared(ret)
+        for(it_joined = joined.begin(); it_joined < joined.end(); it_joined++){
+        //for(auto&row:joined){
+            vector<int> row = *it_joined;
+            int i;
+            for(i = 0; i < row.size(); i++){
+                vector<int> tmp = row;
+                tmp.erase(tmp.begin()+i);
+                if(lSet.find(tmp) == lSet.end()) {
+                    break;
                 }
             }
+            if(i==row.size()){
+                #pragma omp critical
+                ret.push_back(row);
+            }
         }
+
         return ret;
     }
     
     long double getSupport(vector<int> item) {
         int ret = 0;
-        for(auto&row:transactions){
+        vector<vector<int>>::iterator it_item;
+
+        #pragma omp parallel for reduction (+:ret) num_threads(NUM_THREADS)
+        for(it_item = transactions.begin(); it_item < transactions.end(); it_item++){
+            vector<int> row = *it_item;
+            //for(auto&row:transactions){
             int i, j;
             if(row.size() < item.size()) continue;
             for(i=0, j=0; i < row.size();i++) {
@@ -179,9 +195,14 @@ public:
     
     vector<vector<int>> generateL() {
         vector<vector<int> > ret;
-        for(auto&row:C){
+        vector<vector<int>>::iterator it_C;
+        #pragma omp parallel for num_threads(NUM_THREADS) shared(ret)
+        for(it_C = C.begin(); it_C < C.end(); it_C++){
+        // for(auto&row:C){
+            vector<int> row = *it_C;
             long double support = getSupport(row);
             if(round(support, 2) < minSupport) continue;
+            #pragma omp critical
             ret.push_back(row);
         }
         return ret;
@@ -303,7 +324,6 @@ public:
 };
 
 int main (int argc, char **argv) {
-    
     if(argc!=4) {
         cout << "error : The number of parameters must be 3";
         return 0;
@@ -311,7 +331,7 @@ int main (int argc, char **argv) {
     string minSupport(argv[1]);
     string inputFileName(argv[2]);
     string outputFileName(argv[3]);
-
+   
     //Carrega o arquivo na memória
     InputReader inputReader(inputFileName);
     /* 
@@ -329,7 +349,7 @@ int main (int argc, char **argv) {
     };
     */
     vector<vector<int>> transactions = inputReader.getTransactions();
-    
+
     /*
     // Vetor de transações
     for (int i = 0; i < transactions.size(); i++) {
@@ -339,8 +359,6 @@ int main (int argc, char **argv) {
         cout << endl;        
     }
     */    
-
-
     // Criando o objeto Apriori, passando as transações e o suporte mínimo
     Apriori apriori(transactions, stold(minSupport));
     // Inicia o processo para gerar as regras de associação
@@ -353,6 +371,6 @@ int main (int argc, char **argv) {
     for test
     Checker checker("output5.txt", "outputRsupport5.txt");
     checker.compare();
-    */
+    */    
     return 0;
 }

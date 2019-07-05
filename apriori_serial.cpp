@@ -1,5 +1,4 @@
-#include <omp.h>
-#include <stdio.h>
+#include <time.h>
 #include <iostream>
 #include <vector>
 #include <set>
@@ -44,14 +43,22 @@ public:
     
     // Process calcula todos os itemset caditados e os que tem o suporte maio que o suporte minimo
     void process() {
+        double time = 0.0;
+        clock_t initialTime;
+        int count = 0;
         while(true) {
+            initialTime = clock();
             C = generateNextC();
+            time += (clock()-initialTime)/double(CLOCKS_PER_SEC);            
+            count++;
             if(C.size()==0) break;
             nowStep++;
             
             L = generateL();
             frequentSet.push_back(L);
         }
+        cout << time << endl;
+        cout << count << endl;
         
         for(auto&stepItemSet:frequentSet) {
             for(auto&items:stepItemSet) {
@@ -291,7 +298,6 @@ public:
 };
 
 int main (int argc, char **argv) {
-    
     if(argc!=4) {
         cout << "error : The number of parameters must be 3";
         return 0;
@@ -299,7 +305,7 @@ int main (int argc, char **argv) {
     string minSupport(argv[1]);
     string inputFileName(argv[2]);
     string outputFileName(argv[3]);
-
+   
     //Carrega o arquivo na memória
     InputReader inputReader(inputFileName);
     /* 
@@ -328,7 +334,6 @@ int main (int argc, char **argv) {
     }
     */    
 
-
     // Criando o objeto Apriori, passando as transações e o suporte mínimo
     Apriori apriori(transactions, stold(minSupport));
     // Inicia o processo para gerar as regras de associação
@@ -342,5 +347,7 @@ int main (int argc, char **argv) {
     Checker checker("output5.txt", "outputRsupport5.txt");
     checker.compare();
     */
+
+    
     return 0;
 }
