@@ -20,4 +20,4 @@ g++ -fopenmp apriori_paralelo.cpp -o apriori_paralelo.o
 Giovani Ferreira Andrade Botelho<br>
 Maurício Vieira dos Reis<br>
 Rodrigo Guimarães Marafelli Pereira<br>
-Vinícius Spinelli Guimarães<br
+Vinícius Spinelli Guimarães
